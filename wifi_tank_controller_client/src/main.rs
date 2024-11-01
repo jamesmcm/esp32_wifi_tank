@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     };
     println!("Connected to camera: {}", camera_peer);
-    let cam_url = format!("http://{}", CAMERA_HOSTNAME);
+    let cam_url = format!("http://{}", CAMERA_HOSTNAME.split(':').next().unwrap());
     std::process::Command::new("firefox")
         .arg("-kiosk")
         .arg(cam_url.as_str())
