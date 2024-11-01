@@ -1,8 +1,10 @@
 use core::str;
+use std::env;
 use std::error::Error;
-use std::net::SocketAddr;
-use std::{env, io};
 use tokio::net::UdpSocket;
+
+const TARGET_HOSTNAME: &str = "wifitank:8080";
+const CAMERA_HOSTNAME: &str = "espressif:80";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -33,19 +35,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .nth(1)
         .unwrap_or_else(|| "0.0.0.0:8080".to_string());
 
-    let socket = UdpSocket::bind(&addr).await?;
-    let mut buf = vec![0; 1024];
-    println!("Listening on: {}", socket.local_addr()?);
+    println!("Waiting for connection to rover: {}", TARGET_HOSTNAME);
 
-    // Wait to receive message to set peer
-    let (receipt_msg_size, peer) = socket.recv_from(&mut buf).await?;
-    println!(
-        "Received {} bytes from {}: {:?}",
-        receipt_msg_size,
-        peer,
-        str::from_utf8(buf.as_slice()[0..receipt_msg_size].as_ref())
-    );
-    let mut amt: usize = 0;
+    let socket = UdpSocket::bind(&addr).await?;
+    let peer = loop {
+        if let Ok(p) = tokio::net::lookup_host(TARGET_HOSTNAME).await {
+            if let Some(pi) = p.into_iter().next() {
+                break pi;
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    };
+    println!("Connected to rover:  {}", peer);
+
+
+    println!("Waiting for connection to camera: {}", TARGET_HOSTNAME);
+    let camera_peer = loop {
+        if let Ok(p) = tokio::net::lookup_host(CAMERA_HOSTNAME).await {
+            if let Some(pi) = p.into_iter().next() {
+                break pi;
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    };
+    println!("Connected to camera: {}", camera_peer);
+    std::process::Command::new("firefox").arg("-kiosk").arg("http://espressif/camera").spawn().ok();
+    
 
     loop {
         while let Some(Event {
@@ -59,26 +74,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
         {
             let gamepad = gilrs.gamepad(active_gamepad.expect("Gamepad not found!"));
             if gamepad.is_pressed(Button::DPadUp) {
-                amt = socket.send_to(b"F", &peer).await?;
+                socket.send_to(b"F", &peer).await?;
             } else if gamepad.is_pressed(Button::DPadDown) {
-                amt = socket.send_to(b"B", &peer).await?;
+                socket.send_to(b"B", &peer).await?;
             } else if gamepad.is_pressed(Button::DPadLeft) {
-                amt = socket.send_to(b"L", &peer).await?;
+                socket.send_to(b"L", &peer).await?;
             } else if gamepad.is_pressed(Button::DPadRight) {
-                amt = socket.send_to(b"R", &peer).await?;
+                socket.send_to(b"R", &peer).await?;
+            } else if gamepad.is_pressed(Button::Select) {
+                socket.send_to(b"Q", &peer).await?;
+                break;
             } else {
-                amt = socket.send_to(b"N", &peer).await?;
+                socket.send_to(b"N", &peer).await?;
             }
         }
-
-        // if let Ok(m) = socket.try_recv_from(&mut buf) {
-        //     println!(
-        //         "Received {} bytes from {}: {:?}",
-        //         m.0,
-        //         m.1,
-        //         str::from_utf8(buf.as_slice()[0..m.0].as_ref())
-        //     );
-        // }
 
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }

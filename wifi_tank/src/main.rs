@@ -3,29 +3,25 @@
 
 mod motors;
 
-use core::{
-    mem::MaybeUninit,
-    str::{from_utf8, FromStr},
-};
+use core::{mem::MaybeUninit, str::FromStr};
 use embassy_executor::Spawner;
 use embassy_net::udp::{PacketMetadata, UdpSocket};
-use embassy_net::{Config as NetConfig, DhcpConfig, IpEndpoint, Stack, StackResources};
+use embassy_net::{Config as NetConfig, DhcpConfig, Stack, StackResources};
 use esp_backtrace as _;
 use esp_hal::{
     delay::Delay,
-    gpio::{self, GpioPin},
+    gpio::{self},
     prelude::*,
     rng::Rng,
     timer::timg::TimerGroup,
 };
-use esp_wifi::wifi::{self, AuthMethod, WifiController, WifiDevice, WifiStaDevice};
+use esp_wifi::wifi::{self, AuthMethod, WifiDevice, WifiStaDevice};
 use static_cell::StaticCell;
 
 use esp_alloc as _;
 
 type WifiDriver = WifiDevice<'static, WifiStaDevice>;
 const CLIENT_NAME: &str = "wifitank";
-const SERVER_NAME: &str = "spaceship";
 
 fn init_heap() {
     const HEAP_SIZE: usize = 128 * 1024; // 128KB RAM ought to be enough for anybody
@@ -56,19 +52,19 @@ async fn main(spawner: Spawner) {
     esp_hal_embassy::init(timg0.timer0);
 
     // Motors
-    let mut left_v_a_pin = gpio::Output::new(io.pins.gpio13, gpio::Level::High);
-    let mut left_v_b_pin = gpio::Output::new(io.pins.gpio12, gpio::Level::High);
-    let mut left_g_a_pin = gpio::Output::new(io.pins.gpio26, gpio::Level::High);
-    let mut left_g_b_pin = gpio::Output::new(io.pins.gpio25, gpio::Level::High);
+    let left_v_a_pin = gpio::Output::new(io.pins.gpio13, gpio::Level::High);
+    let left_v_b_pin = gpio::Output::new(io.pins.gpio12, gpio::Level::High);
+    let left_g_a_pin = gpio::Output::new(io.pins.gpio26, gpio::Level::High);
+    let left_g_b_pin = gpio::Output::new(io.pins.gpio25, gpio::Level::High);
 
-    let mut right_v_a_pin = gpio::Output::new(io.pins.gpio21, gpio::Level::High);
-    let mut right_v_b_pin = gpio::Output::new(io.pins.gpio19, gpio::Level::High);
-    let mut right_g_a_pin = gpio::Output::new(io.pins.gpio22, gpio::Level::High);
-    let mut right_g_b_pin = gpio::Output::new(io.pins.gpio23, gpio::Level::High);
+    let right_v_a_pin = gpio::Output::new(io.pins.gpio21, gpio::Level::High);
+    let right_v_b_pin = gpio::Output::new(io.pins.gpio19, gpio::Level::High);
+    let right_g_a_pin = gpio::Output::new(io.pins.gpio22, gpio::Level::High);
+    let right_g_b_pin = gpio::Output::new(io.pins.gpio23, gpio::Level::High);
 
-    let mut left_motor =
+    let left_motor =
         motors::MotorDriver::new(left_v_a_pin, left_v_b_pin, left_g_a_pin, left_g_b_pin);
-    let mut right_motor =
+    let right_motor =
         motors::MotorDriver::new(right_v_a_pin, right_v_b_pin, right_g_a_pin, right_g_b_pin);
     let mut motors = motors::Motors::new(left_motor, right_motor);
 
@@ -94,16 +90,16 @@ async fn main(spawner: Spawner) {
     log::info!("Pre-wifi config: {}", &wifi_ssid);
     let wifi_config = esp_wifi::wifi::ClientConfiguration {
         ssid: wifi_ssid,
-        bssid: Some([0x80, 0xea, 0x0b, 0xc8, 0xcc, 0x9f]), //  80:EA:0B:C8:CC:9F - this is BSSID for 2.4GHz, this board does not support 5G
+        bssid: None,
         auth_method: AuthMethod::WPA2Personal, // WPA2Personal - AP is technically WPA3 too, but seems board doesn't support this
         password: wifi_password,
-        channel: Some(1), // Fixed in AP settings to avoid it changing during connection
+        channel: None,
     };
 
     log::info!("Post-wifi config");
 
     log::info!("Pre-wifi creation");
-    let (mut wifi_device, mut wifi_controller): (WifiDevice<WifiStaDevice>, _) =
+    let (wifi_device, mut wifi_controller): (WifiDevice<WifiStaDevice>, _) =
         wifi::new_with_config(&wifi_init, peripherals.WIFI, wifi_config).unwrap();
     log::info!("Pre-wifi start");
     wifi_controller.start().await.unwrap();
@@ -143,18 +139,6 @@ async fn main(spawner: Spawner) {
         None => core::panic!("DHCP completed but no IP address was assigned!"),
     }
 
-    let server_address = stack
-        .dns_query(SERVER_NAME, embassy_net::dns::DnsQueryType::A)
-        .await
-        .unwrap();
-
-    let dest = server_address.first().unwrap().clone();
-    log::info!(
-        "Our server named {} resolved to the address {}",
-        SERVER_NAME,
-        dest
-    );
-
     let mut udp_rx_meta = [PacketMetadata::EMPTY; 16];
     let mut udp_rx_buffer = [0; 1024];
     let mut udp_tx_meta = [PacketMetadata::EMPTY; 16];
@@ -162,7 +146,7 @@ async fn main(spawner: Spawner) {
     let mut msg_buffer = [0; 128];
 
     let mut udp_socket = UdpSocket::new(
-        &stack,
+        stack,
         &mut udp_rx_meta,
         &mut udp_rx_buffer,
         &mut udp_tx_meta,
@@ -171,44 +155,26 @@ async fn main(spawner: Spawner) {
 
     udp_socket.bind(8080).unwrap();
 
-    // Start conn loop
     loop {
-        embassy_time::Timer::after(embassy_time::Duration::from_secs(1)).await;
-        log::info!("Sending test message to server");
-        udp_socket
-            .send_to("HELO\n".as_bytes(), IpEndpoint::new(dest, 8080))
-            .await
-            .unwrap();
-
-        if udp_socket.may_recv() {
-            let (rx_size, from_addr) = udp_socket.recv_from(&mut msg_buffer).await.unwrap();
-            if rx_size == 0 {
-                log::info!("Received empty message from {}", from_addr);
-                continue;
-            } else {
-                let response = from_utf8(&msg_buffer[..rx_size]).unwrap();
-                log::info!("Received message from {} - {}", from_addr, response);
+        let (rx_size, from_addr) = udp_socket.recv_from(&mut msg_buffer).await.unwrap();
+        if rx_size == 0 {
+            log::info!("Received empty message from {}", from_addr);
+            continue;
+        }
+        let response = msg_buffer[rx_size - 1] as char;
+        match response {
+            'F' => motors.forward(),
+            'B' => motors.backward(),
+            'L' => motors.left(),
+            'R' => motors.right(),
+            'N' => motors.stop(),
+            'Q' => {
+                // TODO: Deep sleep here?
+                motors.stop();
                 break;
             }
+            _ => log::info!("Unknown command {}", response),
         }
+        // TODO: Add timeout to stop motors if nothing received
     }
-
-    loop {
-            let (rx_size, from_addr) = udp_socket.recv_from(&mut msg_buffer).await.unwrap();
-            if rx_size == 0 {
-                log::info!("Received empty message from {}", from_addr);
-                continue;
-            }
-            let response = msg_buffer[rx_size - 1] as char;
-            match response {
-                'F' => motors.forward(),
-                'B' => motors.backward(),
-                'L' => motors.left(),
-                'R' => motors.right(),
-                'N' => motors.stop(),
-                _ => log::info!("Unknown command {}", response),
-            }
-            // TODO: Add timeout to stop motors if nothing received
-        }
-
-    }
+}
