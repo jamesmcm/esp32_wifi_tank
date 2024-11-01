@@ -22,8 +22,10 @@ fn main() -> Result<()> {
     let sysloop = EspSystemEventLoop::take()?;
 
     let peripherals = Peripherals::take().unwrap();
+    let wifi_ssid = env!("WIFI_SSID");
+    let wifi_password = env!("WIFI_PASSWORD");
 
-    let _wifi = match my_wifi("YOUR_SSID", "YOUR_PASSWORD", peripherals.modem, sysloop) {
+    let _wifi = match my_wifi(wifi_ssid, wifi_password, peripherals.modem, sysloop) {
         Ok(inner) => inner,
         Err(err) => {
             bail!("Could not connect to Wi-Fi network: {:?}", err)
@@ -47,9 +49,11 @@ fn main() -> Result<()> {
         peripherals.pins.gpio26,
         peripherals.pins.gpio27,
         esp_idf_sys::camera::pixformat_t_PIXFORMAT_JPEG,
-        esp_idf_sys::camera::framesize_t_FRAMESIZE_UXGA,
+        // Set quality here
+        esp_idf_sys::camera::framesize_t_FRAMESIZE_SVGA,
     )
     .unwrap();
+    // camera.sensor().set_vflip(true)?; // Flip if needed
 
     let cam_arc = Arc::new(camera);
     let cam_arc_clone = cam_arc.clone();
@@ -91,8 +95,15 @@ fn main() -> Result<()> {
     )?;
 
     server.fn_handler("/", Method::Get, |request| -> Result<(), anyhow::Error> {
-        let mut response = request.into_ok_response()?;
-        response.write_all("ok".as_bytes())?;
+        let data = "<html><head><meta name=\"viewport\" content=\"width=device-width; height=device-height;\"><title>esp32cam</title></head><body><img src=\"camera\" alt=\"Failed to load image\" style=\"height: 100%;width: 100%; transform: rotate(180deg);\"></body></html>";
+
+
+        let headers = [
+            ("Content-Type", "text/html"),
+            ("Content-Length", &data.len().to_string()),
+        ];
+        let mut response = request.into_response(200, Some("OK"), &headers)?;
+        response.write_all(data.as_bytes())?;
         Ok(())
     })?;
 

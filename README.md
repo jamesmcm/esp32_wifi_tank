@@ -53,7 +53,7 @@ Initialise the `esp32-camera` git submodule with:
 $ git submodule update --init
 ```
 
-Note the Wifi credentials here are hardcoded in the code at the moment.
+The Wifi credentials should be added in `.cargo/config.toml` as for the the `wifi_tank` crate.
 
 ## Hardware
 
