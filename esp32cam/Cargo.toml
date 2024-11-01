@@ -1,0 +1,59 @@
+[package]
+name = "esp32cam"
+version = "0.1.0"
+authors = ["James McMurray <jamesmcm03@gmail.com>"]
+edition = "2021"
+resolver = "2"
+rust-version = "1.77"
+
+[[bin]]
+name = "esp32cam"
+harness = false # do not use the built in cargo test harness -> resolve rust-analyzer errors
+
+[profile.release]
+opt-level = "s"
+lto = true
+
+[profile.dev]
+debug = true    # Symbols are nice and they don't increase the size on Flash
+opt-level = "z"
+
+[features]
+default = ["std", "embassy", "esp-idf-svc/native"]
+
+pio = ["esp-idf-svc/pio"]
+std = ["alloc", "esp-idf-svc/binstart", "esp-idf-svc/std"]
+alloc = ["esp-idf-svc/alloc"]
+nightly = ["esp-idf-svc/nightly"]
+experimental = ["esp-idf-svc/experimental"]
+embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-svc/embassy-time-driver"]
+
+[dependencies]
+log = { version = "0.4", default-features = false }
+esp-idf-svc = { version = "0.49", default-features = false }
+
+embedded-svc = "0.28"
+anyhow = "1"
+
+bstr = { version = "1.8.0", default-features = false }
+tokio = { version = "*", features = ["rt", "time", "sync","macros"] }
+lazy_static = "1.4.0"
+uuid = { version = "1.2.2", default-features = false, features = ["macro-diagnostics"] }
+rgb565 = "0.1.3"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"]}
+serde_json = { version = "1"}
+
+esp-idf-hal = "0.44"
+esp-idf-sys = "0.35"
+thiserror = "1"
+
+[build-dependencies]
+embuild = "0.32.0"
+
+[[package.metadata.esp-idf-sys.extra_components]]
+component_dirs = "components/esp32-camera"
+bindings_header = "components/bindings.h"
+bindings_module = "camera"
+
+

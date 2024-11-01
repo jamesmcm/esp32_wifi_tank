@@ -1,0 +1,8 @@
+[package]
+name = "wifi_tank_controller_client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gilrs = "0.11.0"
+tokio = {version = "1.41.0", features = ["full"]}
