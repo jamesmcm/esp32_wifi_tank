@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     println!("Connected to rover:  {}", peer);
 
-
+    // TODO: Move to other thread?
     println!("Waiting for connection to camera: {}", TARGET_HOSTNAME);
     let camera_peer = loop {
         if let Ok(p) = tokio::net::lookup_host(CAMERA_HOSTNAME).await {
@@ -59,8 +59,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     };
     println!("Connected to camera: {}", camera_peer);
-    std::process::Command::new("firefox").arg("-kiosk").arg("http://espressif/camera").spawn().ok();
-    
+    let cam_url = format!("http://{}", CAMERA_HOSTNAME);
+    std::process::Command::new("firefox")
+        .arg("-kiosk")
+        .arg(cam_url.as_str())
+        .spawn()
+        .ok();
 
     loop {
         while let Some(Event {
