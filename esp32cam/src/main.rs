@@ -60,7 +60,6 @@ fn main() -> Result<()> {
 
     let mut server = EspHttpServer::new(&esp_idf_svc::http::server::Configuration::default())?;
 
-    // TODO: Make this stream instead
     server.fn_handler(
         "/camera",
         Method::Get,
@@ -69,12 +68,7 @@ fn main() -> Result<()> {
             let frame_boundary = format!("\r\n--{}\r\n", part_boundary);
 
             let content_type = format!("multipart/x-mixed-replace;boundary={}", part_boundary);
-            // TODO: Do we need frame content-length?
-            let headers = [
-                // ("Content-Type", "image/jpeg"),
-                // ("Content-Length", &data.len().to_string()),
-                ("Content-Type", content_type.as_str()),
-            ];
+            let headers = [("Content-Type", content_type.as_str())];
             let mut response = request.into_response(200, Some("OK"), &headers).unwrap();
             loop {
                 if let Some(fb) = cam_arc_clone.get_framebuffer() {

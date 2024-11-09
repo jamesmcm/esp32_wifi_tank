@@ -21,8 +21,6 @@ Crate link: [wifi_tank](./wifi_tank/)
 This crate contains the ESP32 code for the control board on the rover itself.
 This should be flashed onto that board.
 
-This code is a modified version of [@Kezii's esp32cam_rs](https://github.com/Kezii/esp32cam_rs) crate.
-
 Your Wifi credentials should be added to `.cargo/config.toml` before building,
 and use 2.5GHz Wifi and WPA2 personal authentication.
 
@@ -46,6 +44,8 @@ This crate contains the ESP32 code for the ESP32-CAM module and should
 be flashed onto the camera board (see below for flashing details). The
 code serves a stream on HTTP at [http://espressif/camera](http://espressif/camera)
 once connected to the Wifi.
+
+This code is a modified version of [@Kezii's esp32cam_rs](https://github.com/Kezii/esp32cam_rs) crate.
 
 Initialise the `esp32-camera` git submodule with:
 
@@ -144,3 +144,4 @@ Note this code requires SPI RAM to be enabled - `CONFIG_ESP32_SPIRAM_SUPPORT=y` 
 - [Rust Client/Server Comms on the Raspberry Pi Pico](https://murraytodd.medium.com/client-server-comms-on-the-raspberry-pi-pico-w-b0767ecfb4dc)
 - [IoT with Rust on ESP](https://dev.to/theembeddedrustacean/iot-with-rust-on-esp-connecting-wifi-4be6)
 - [Connect ESP32 to Wifi with Rust](https://medium.com/@rajeshpachaikani/connect-esp32-to-wifi-with-rust-7d12532f539b)
+- [LastMinuteEngineers' Getting Started with ESP32 CAM](https://lastminuteengineers.com/getting-started-with-esp32-cam/)

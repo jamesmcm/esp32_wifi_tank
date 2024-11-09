@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut active_gamepad = None;
 
-    println!("Push button gamepad!");
+    println!("Push button on gamepad!");
     while active_gamepad.is_none() {
         // Examine new events
         while let Some(Event {
